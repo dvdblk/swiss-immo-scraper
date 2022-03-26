@@ -26,6 +26,9 @@ class ImmoData:
         self.rent = self._add_suffix(self.rent, " CHF")
         self.living_space = self._add_suffix(self.living_space, " m²")
 
+        if isinstance(self.rooms, int):
+            self.rooms = str(self.rooms)
+
     def _add_suffix(self, x, suffix):
         """Add unit as a suffix to a given variable"""
         if not isinstance(x, str):

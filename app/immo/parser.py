@@ -15,15 +15,34 @@ class ImmoParserError(Exception):
     """Parsing errors"""
     ...
 
+
 def write_to_clipboard(output):
         process = subprocess.Popen(
             'pbcopy', env={'LANG': 'en_US.UTF-8'}, stdin=subprocess.PIPE)
         process.communicate(output.encode('utf-8'))
 
 
+def scaled_image_size(width, height, max_width, max_height):
+    """Resize the image given original w/h given max w/h
+
+    Note:
+        https://stackoverflow.com/a/6501997/4249857
+    """
+    # Set default w/h if given is == 0
+    if not width:
+        width = 1024
+    if not height:
+        height = 728
+
+    ratio_x = max_width / width
+    ratio_y = max_height / height
+    ratio = min(ratio_x, ratio_y)
+
+    return width * ratio, height * ratio
+
+
 class ImmoParser:
     """Parse different HTML Immo website listings"""
-
 
     @staticmethod
     def _parse_immoscout24(html: BeautifulSoup) -> List[ImmoData]:
@@ -46,48 +65,38 @@ class ImmoParser:
         )
         listings_json = json.loads(json_data_clean)
         listings = listings_json["pages"]["searchResult"]["resultData"]["listData"]
-        write_to_clipboard(json.dumps(listings))
-
-        articles = html.find_all("article")
-        listings = []
-        for article in articles:
-            if article.get("data-property-id") is not None:
-                listings.append(article)
 
         immo_data_list = []
         for listing in listings:
-            info_tag = listing.find("div", { "class": re.compile("^Content-") })
-            title_raw = info_tag.find("div").h2.text
-            title = title_raw.replace("<!-- -->", "").replace("«", "").replace("»", "")
+            title = listing.get("title", "Wohnung")
+            try:
+                loc = listing["cityName"]
+                plz = listing["zip"]
+                street = listing["street"]
+                state = listing["stateShort"]
+                address = f"{street}, {plz} {loc}, {state}"
+            except KeyError:
+                address = None
+            url = listing.get("propertyUrl")
+            rent = listing.get("price")
+            rooms = listing.get("numberOfRooms")
+            living_space = listing.get("surfaceLiving")
 
-            address = info_tag.find("span", { "class": re.compile("^AddressLine") }).text
-            url = listing.a["href"]
-
-            stats_raw = info_tag.h3.text.replace("<!-- -->", "").replace("<span>", "").replace("</span>", "")
-            stats = stats_raw.split(",")
-            rooms, rent, living_space = None, None, None
-            for stat in stats:
-                if "rooms" in stat:
-                    rooms = stat.rstrip(" rooms")
-                elif "CHF" in stat:
-                    rent = stat.lstrip("CHF ").rstrip(".—")
-                elif "m²" in stat:
-                    living_space = stat
-
-            image_divs = listing.find_all("div", { "class": re.compile("^Slide-") })
-            image_tags = list(map(lambda d: d.img, image_divs))
-            if len(image_tags) > 1:
-                # Remove first image of index(last_img) if needed
-                if image_tags[0] in image_tags[1:]:
-                    del image_tags[0]
-
-            n_images = len(image_tags)
-            if n_images > 1:
-                # Remove duplicate 0 index image if needed
-                if image_tags[n_images-1] in image_tags[:n_images-1]:
-                    del image_tags[n_images-1]
-
-            images = list(map(lambda img: img["src"], image_tags))
+            images = []
+            for img in listing.get("images", []):
+                width, height = scaled_image_size(
+                    img["originalWidth"],
+                    img["originalHeight"],
+                    1280,
+                    720
+                )
+                images.append(
+                    img["url"]\
+                    .replace("{width}", str(width), 1)\
+                    .replace("{height}", str(height), 1)\
+                    .replace("{resizemode}", "3", 1)\
+                    .replace("{quality}", "90", 1)
+                )
 
             immo_data_list.append(
                 ImmoData(
