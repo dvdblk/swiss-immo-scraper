@@ -2,18 +2,14 @@
 import argparse
 import asyncio
 import json
-import os
 
 import aiohttp
-
-from dotenv import load_dotenv
 
 from app.manager import ImmoManager
 
 
 async def main(args: dict):
     """Starts the scraper"""
-    load_dotenv()
 
     session = aiohttp.ClientSession(
         headers={
