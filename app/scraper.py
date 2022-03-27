@@ -1,5 +1,4 @@
 """Scraping functionality"""
-from typing import List
 from urllib.parse import ParseResult
 
 from aiohttp import (
@@ -10,10 +9,11 @@ from bs4 import BeautifulSoup
 
 from app.immo.website import ImmoWebsite
 from app.immo.parser import ImmoParser
+from app.immo.model import ImmoData
 
 class ScraperError(Exception):
     """Scraping exceptions"""
-    ...
+    pass
 
 
 class Scraper:
@@ -33,12 +33,11 @@ class Scraper:
                 html = await resp.read()
                 return BeautifulSoup(html.decode("utf-8"), "html.parser")
             else:
-                print(await resp.text())
                 raise ScraperError(f"status={resp.status}")
         except ClientConnectorError as err:
             raise ScraperError from err
 
-    async def scrape(self) -> List[str]:
+    async def scrape(self) -> list[ImmoData]:
         """Scrape the given website data and return a list of last x listings"""
         html = await self._fetch()
         return ImmoParser.parse_html(self.website, html)

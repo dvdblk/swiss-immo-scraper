@@ -14,7 +14,6 @@ from app.manager import ImmoManager
 async def main(args: dict):
     """Starts the scraper"""
     load_dotenv()
-    discord_webhook = os.getenv("DISCORD_WEBHOOK")
 
     session = aiohttp.ClientSession(
         headers={
@@ -26,13 +25,12 @@ async def main(args: dict):
     managers = []
     scrape_data = json.load(args.file)
     for web_data in scrape_data:
-        manager = ImmoManager(web_data, session, discord_webhook)
+        manager = ImmoManager(web_data, session, args.use_google_maps)
         managers.append(manager)
 
         loop.create_task(manager.start())
 
 if __name__=="__main__":
-
     parser = argparse.ArgumentParser(description="Swiss Immo Scraper")
     parser.add_argument(
         "-f",
@@ -40,6 +38,12 @@ if __name__=="__main__":
         help="The json file with urls to scrape",
         type=argparse.FileType("r"),
         required=True
+    )
+    parser.add_argument(
+        "--google-maps",
+        action=argparse.BooleanOptionalAction,
+        dest="use_google_maps",
+        default=True
     )
 
     loop = asyncio.new_event_loop()

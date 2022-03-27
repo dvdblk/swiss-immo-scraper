@@ -4,52 +4,28 @@ import json
 import subprocess
 import re
 from urllib.parse import urljoin
-from typing import List
 
 from bs4 import BeautifulSoup
 
 from app.immo.website import ImmoWebsite
 from app.immo.model import ImmoData
+from app.image_utils import scaled_image_size
+
 
 class ImmoParserError(Exception):
     """Parsing errors"""
-    ...
-
-
-def write_to_clipboard(output):
-        process = subprocess.Popen(
-            'pbcopy', env={'LANG': 'en_US.UTF-8'}, stdin=subprocess.PIPE)
-        process.communicate(output.encode('utf-8'))
-
-
-def scaled_image_size(width, height, max_width, max_height):
-    """Resize the image given original w/h given max w/h
-
-    Note:
-        https://stackoverflow.com/a/6501997/4249857
-    """
-    # Set default w/h if given is == 0
-    if not width:
-        width = 1024
-    if not height:
-        height = 728
-
-    ratio_x = max_width / width
-    ratio_y = max_height / height
-    ratio = min(ratio_x, ratio_y)
-
-    return width * ratio, height * ratio
+    pass
 
 
 class ImmoParser:
     """Parse different HTML Immo website listings"""
 
     @staticmethod
-    def _parse_immoscout24(html: BeautifulSoup) -> List[ImmoData]:
+    def _parse_immoscout24(html: BeautifulSoup) -> list[ImmoData]:
         """Parse immoscout24.ch listings
 
         Returns:
-            List[str]: url paths of listings on the immo website
+            list[ImmoData]: ImmoData of listings on the immo website
         """
         json_data_raw = html.find("script", { "id": "state" }).text.lstrip("__INITIAL_STATE__=")
         # This data contains obfuscated js code, need to clean it up first
@@ -84,6 +60,7 @@ class ImmoParser:
 
             images = []
             for img in listing.get("images", []):
+                # Need to set a valid size for the image to load (less than 1280x720)
                 width, height = scaled_image_size(
                     img["originalWidth"],
                     img["originalHeight"],
@@ -113,11 +90,11 @@ class ImmoParser:
         return immo_data_list
 
     @staticmethod
-    def _parse_homegate(html: BeautifulSoup) -> List[ImmoData]:
+    def _parse_homegate(html: BeautifulSoup) -> list[ImmoData]:
         """Parse homegate.ch listings
 
         Returns:
-            List[str]: url paths of listings on the immo website
+            list[ImmoData]: ImmoData of listings on the immo website
         """
         results = html.find("div", { "data-test": "result-list" })
         listings = list(map(lambda listing: listing.a, results.children))
@@ -178,13 +155,12 @@ class ImmoParser:
         return immo_data_list
 
     @classmethod
-    def parse_html(cls, website: ImmoWebsite, html: BeautifulSoup) -> List[ImmoData]:
+    def parse_html(cls, website: ImmoWebsite, html: BeautifulSoup) -> list[ImmoData]:
         """Select the correct parser and parse the given html
 
         Returns:
-            immo_data: list of data about each listing
+            list[immo_data]: list of data about each listing
         """
-        results = None
         match website:
             case ImmoWebsite.IMMOSCOUT24:
                 results = cls._parse_immoscout24(html)

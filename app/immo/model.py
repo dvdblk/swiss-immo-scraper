@@ -3,13 +3,13 @@ from dataclasses import (
     fields,
     _MISSING_TYPE
 )
-from typing import List
+
 
 @dataclass
 class ImmoData:
     title: str
     url: str
-    images: List[str]
+    images: list[str]
     address: str = "No address"
     rent: str = "On request"
     rooms: str = "-"
@@ -29,7 +29,7 @@ class ImmoData:
         if isinstance(self.rooms, int):
             self.rooms = str(self.rooms)
 
-    def _add_suffix(self, x, suffix):
+    def _add_suffix(self, x, suffix) -> str:
         """Add unit as a suffix to a given variable"""
         if not isinstance(x, str):
             x = str(x)
