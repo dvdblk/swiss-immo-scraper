@@ -14,6 +14,7 @@ RUN pip3 install -r requirements.txt
 RUN --mount=type=secret,id=DISCORD_WEBHOOK \
     --mount=type=secret,id=GOOGLE_MAPS_API_KEY \
     export DISCORD_WEBHOOK=$(cat /run/secrets/DISCORD_WEBHOOK) && \
-    export GOOGLE_MAPS_API_KEY=$(cat /run/secrets/GOOGLE_MAPS_API_KEY)
+    export GOOGLE_MAPS_API_KEY=$(cat /run/secrets/GOOGLE_MAPS_API_KEY) && \
+    echo "${GOOGLE_MAPS_API_KEY}" | cut -c 6
 
 CMD [ "python3", "-m", "app.main", "-f", "etc/urls.json"]
