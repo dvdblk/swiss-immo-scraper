@@ -34,6 +34,8 @@ platformdirs==2.5.1
     # via pylint
 pylint==2.12.2
     # via -r requirements.in
+python-dotenv==0.20.0
+    # via -r requirements.in
 soupsieve==2.3.1
     # via beautifulsoup4
 toml==0.10.2

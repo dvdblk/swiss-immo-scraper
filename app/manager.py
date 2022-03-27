@@ -25,8 +25,9 @@ class ImmoManager:
         self, web_data: dict, session: ClientSession, use_google_maps: bool
     ):
         # Env vars
-        discord_webhook_url = os.getenv("DISCORD_WEBHOOK")
-        self.google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY") if use_google_maps else None
+        discord_webhook_url = os.environ["DISCORD_WEBHOOK"]
+        print(discord_webhook_url)
+        self.google_maps_api_key = os.environ["GOOGLE_MAPS_API_KEY"] if use_google_maps else None
 
         # Data
         self.web_data = web_data
