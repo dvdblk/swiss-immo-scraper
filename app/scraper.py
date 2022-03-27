@@ -6,10 +6,13 @@ from aiohttp import (
     ClientConnectorError
 )
 from bs4 import BeautifulSoup
+from setuptools import setup
 
+from app import setup_custom_logger
 from app.immo.website import ImmoWebsite
 from app.immo.parser import ImmoParser
 from app.immo.model import ImmoData
+
 
 class ScraperError(Exception):
     """Scraping exceptions"""
@@ -20,8 +23,8 @@ class Scraper:
     """Fetch the given url and return scraped data"""
 
     def __init__(self, parsed_url: ParseResult, session: ClientSession) -> None:
-        # Web data can contain user agent etc...
         self.url = parsed_url.geturl()
+        self.logger = setup_custom_logger(".".join([__name__, parsed_url.hostname]))
         self.website = ImmoWebsite(parsed_url.hostname)
         self.session = session
 
@@ -39,5 +42,9 @@ class Scraper:
 
     async def scrape(self) -> list[ImmoData]:
         """Scrape the given website data and return a list of last x listings"""
-        html = await self._fetch()
-        return ImmoParser.parse_html(self.website, html)
+        try:
+            html = await self._fetch()
+            return ImmoParser.parse_html(self.website, html)
+        except KeyError:
+            self.logger.error("html for %s has changed!", self.website.value)
+            return []
