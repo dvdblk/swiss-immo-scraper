@@ -14,20 +14,12 @@ attrs==21.4.0
     # via aiohttp
 beautifulsoup4==4.10.0
     # via -r requirements.in
-certifi==2021.10.8
-    # via requests
 chardet==4.0.0
     # via aiohttp
-charset-normalizer==2.0.12
-    # via requests
 discord-py==1.7.3
     # via -r requirements.in
-googlemaps==4.6.0
-    # via -r requirements.in
 idna==3.3
-    # via
-    #   requests
-    #   yarl
+    # via yarl
 isort==5.10.1
     # via pylint
 lazy-object-proxy==1.7.1
@@ -44,16 +36,12 @@ pylint==2.12.2
     # via -r requirements.in
 python-dotenv==0.19.2
     # via -r requirements.in
-requests==2.27.1
-    # via googlemaps
 soupsieve==2.3.1
     # via beautifulsoup4
 toml==0.10.2
     # via pylint
 typing-extensions==4.1.1
     # via aiohttp
-urllib3==1.26.9
-    # via requests
 wrapt==1.13.3
     # via astroid
 yarl==1.7.2
