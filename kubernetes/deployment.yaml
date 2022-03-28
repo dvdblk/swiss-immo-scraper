@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scraper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: immo-scraper
+  template:
+    spec:
+      containers:
+        - name: scraper
+          image: ghcr.io/dvdblk/swiss-immo-scraper:dev
+          imagePullPolicy: Always
+      imagePullSecrets:
+        - name: ghcr-regcred

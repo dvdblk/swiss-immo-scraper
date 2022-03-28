@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: immo-scraper
+generatorOptions:
+  disableNameSuffixHash: true
+secretGenerator:
+- name: ghcr-regcred
+  behavior: create
+  files:
+    - .dockerconfigjson=dockerconfig.json
+  type: kubernetes.io/dockerconfigjson
+resources:
+- namespace.yaml
+- deployment.yaml
+commonLabels:
+  app: immo-scraper
