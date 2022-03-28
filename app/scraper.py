@@ -48,3 +48,6 @@ class Scraper:
         except KeyError:
             self.logger.error("html for %s has changed!", self.website.value)
             return []
+        except ScraperError as e:
+            self.logger.error(e)
+            return []

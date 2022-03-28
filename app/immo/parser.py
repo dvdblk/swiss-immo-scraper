@@ -1,15 +1,16 @@
 """Parsing for immobilien websites"""
-from asyncore import write
 import json
-import subprocess
 import re
-from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
 from app.immo.website import ImmoWebsite
 from app.immo.model import ImmoData
 from app.image_utils import scaled_image_size
+from app import setup_custom_logger
+
+
+logger = setup_custom_logger(__name__)
 
 
 class ImmoParserError(Exception):
@@ -40,7 +41,10 @@ class ImmoParser:
             string=json_data_clean
         )
         listings_json = json.loads(json_data_clean)
-        listings = listings_json["pages"]["searchResult"]["resultData"]["listData"]
+        try:
+            listings = listings_json["pages"]["searchResult"]["resultData"]["listData"]
+        except KeyError:
+            raise ImmoParserError("Listings json changed.")
 
         immo_data_list = []
         for listing in listings:
@@ -62,18 +66,19 @@ class ImmoParser:
             for img in listing.get("images", []):
                 # Need to set a valid size for the image to load (less than 1280x720)
                 width, height = scaled_image_size(
-                    img["originalWidth"],
-                    img["originalHeight"],
+                    img.get("originalWidth", 0),
+                    img.get("originalHeight", 0),
                     1280,
                     720
                 )
-                images.append(
-                    img["url"]\
-                    .replace("{width}", str(width), 1)\
-                    .replace("{height}", str(height), 1)\
-                    .replace("{resizemode}", "3", 1)\
-                    .replace("{quality}", "90", 1)
-                )
+                if img.get("url"):
+                    images.append(
+                        img["url"]\
+                        .replace("{width}", str(width), 1)\
+                        .replace("{height}", str(height), 1)\
+                        .replace("{resizemode}", "3", 1)\
+                        .replace("{quality}", "90", 1)
+                    )
 
             immo_data_list.append(
                 ImmoData(
@@ -96,9 +101,6 @@ class ImmoParser:
         Returns:
             list[ImmoData]: ImmoData of listings on the immo website
         """
-        results = html.find("div", { "data-test": "result-list" })
-        listings = list(map(lambda listing: listing.a, results.children))
-
         script_tags = html.find_all("script")
         text_to_lstrip = "window.__INITIAL_STATE__="
         listings_json = None
@@ -111,46 +113,54 @@ class ImmoParser:
                 "Can't find homegate.ch <script> with JSON data in HTML"
             )
 
-        listings = listings_json\
-            ["resultList"]["search"]["fullSearch"]["result"]["listings"]
+        try:
+            listings = listings_json\
+                ["resultList"]["search"]["fullSearch"]["result"]["listings"]
+        except KeyError:
+            raise ImmoParserError("Listings json changed.")
 
         immo_data_list = []
         for listing in listings:
-            listing = listing["listing"]
-            localization = listing["localization"]
-            primary_key = localization["primary"]
-            title = localization[primary_key]["text"]["title"]
-            images_list = localization[primary_key]["attachments"]
-            images = []
-            for image_obj in images_list:
-                if image_obj["type"] == "IMAGE":
-                    images.append(
-                        image_obj["url"].encode().decode("unicode-escape")
-                    )
-            address = None
             try:
-                loc = listing["address"]["locality"]
-                plz = listing["address"]["postalCode"]
-                street = listing["address"]["street"]
-                address = f"{street}, {plz} {loc}"
-            except KeyError:
-                pass
-            url = f"/rent/{listing['id']}"
-            rent = listing["prices"]["rent"].get("gross")
-            rooms = str(listing["characteristics"].get("numberOfRooms"))
-            living_space = listing["characteristics"].get("livingSpace")
+                listing = listing["listing"]
+                localization = listing["localization"]
+                primary_key = localization["primary"]
+                title = localization[primary_key]["text"]["title"]
+                images_list = localization[primary_key]["attachments"]
+                images = []
+                for image_obj in images_list:
+                    if image_obj["type"] == "IMAGE":
+                        images.append(
+                            image_obj["url"].encode().decode("unicode-escape")
+                        )
+                address = None
+                try:
+                    loc = listing["address"]["locality"]
+                    plz = listing["address"]["postalCode"]
+                    street = listing["address"]["street"]
+                    address = f"{street}, {plz} {loc}"
+                except KeyError:
+                    pass
+                url = f"/rent/{listing['id']}"
+                rent = listing["prices"]["rent"].get("gross")
+                rooms = str(listing["characteristics"].get("numberOfRooms"))
+                living_space = listing["characteristics"].get("livingSpace")
 
-            immo_data_list.append(
-                ImmoData(
-                    title=title,
-                    address=address,
-                    url=url,
-                    rent=rent,
-                    rooms=rooms,
-                    living_space=living_space,
-                    images=images
+                immo_data_list.append(
+                    ImmoData(
+                        title=title,
+                        address=address,
+                        url=url,
+                        rent=rent,
+                        rooms=rooms,
+                        living_space=living_space,
+                        images=images
+                    )
                 )
-            )
+            except KeyError:
+                logger.error("homegate.ch key error: %s", listing)
+                continue
+
 
         return immo_data_list
 
