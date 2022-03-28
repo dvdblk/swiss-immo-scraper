@@ -93,6 +93,7 @@ class ImmoManager:
                         self.discord,
                         immo_data=new_listing,
                         hostname=self.parsed_url.hostname,
+                        host_url=self.web_data["url"],
                         host_icon_url=self.web_data.get("author_icon_url"),
                         immo_distance=distance,
                         immo_duration=duration

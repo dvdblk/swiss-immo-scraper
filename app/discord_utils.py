@@ -9,8 +9,8 @@ from app.immo.model import ImmoData
 
 
 async def send_discord_listing_embed(
-    webhook: Webhook, immo_data: ImmoData, hostname: str, host_icon_url: str,
-    immo_distance: str, immo_duration: str
+    webhook: Webhook, immo_data: ImmoData, hostname: str, host_url: str,
+    host_icon_url: str, immo_distance: str, immo_duration: str
 ):
     """Sends an embed message from listing (immo) data"""
     embeds = []
@@ -23,7 +23,7 @@ async def send_discord_listing_embed(
     )
     embed.set_author(
         name=hostname,
-        url=f"https://{hostname}",
+        url=host_url,
         icon_url=host_icon_url or ""
     )
     embed.add_field(
