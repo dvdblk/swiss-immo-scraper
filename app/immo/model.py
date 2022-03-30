@@ -16,7 +16,7 @@ class ImmoData:
     living_space: str = "-"
 
     def __post_init__(self):
-        # Set default values properly for None
+        # Set default values properly for None input arguments
         # https://stackoverflow.com/a/69944614/4249857
         for field in fields(self):
             # Set a default value if the value of the field is None

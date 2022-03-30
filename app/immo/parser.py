@@ -143,8 +143,9 @@ class ImmoParser:
                     pass
                 url = f"/rent/{listing['id']}"
                 rent = listing["prices"]["rent"].get("gross")
-                rooms = str(listing["characteristics"].get("numberOfRooms"))
-                living_space = listing["characteristics"].get("livingSpace")
+                if characteristics := listing.get("characteristics"):
+                    rooms = str(characteristics.get("numberOfRooms"))
+                    living_space = characteristics.get("livingSpace")
 
                 immo_data_list.append(
                     ImmoData(
