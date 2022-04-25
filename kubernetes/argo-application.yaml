@@ -1,0 +1,16 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: swiss-immo-scraper-app
+  namespace: argo-cd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/dvdblk/swiss-immo-scraper.git
+    targetRevision: HEAD
+    path: kubernetes/resources
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: immo-scraper

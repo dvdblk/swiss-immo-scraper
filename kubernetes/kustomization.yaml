@@ -10,7 +10,7 @@ secretGenerator:
     - .dockerconfigjson=dockerconfig.json
   type: kubernetes.io/dockerconfigjson
 resources:
-- namespace.yaml
-- deployment.yaml
+- resources/namespace.yaml
+- resources/deployment.yaml
 commonLabels:
   app: immo-scraper
