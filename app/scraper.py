@@ -3,7 +3,9 @@ from urllib.parse import ParseResult
 
 from aiohttp import (
     ClientSession,
-    ClientConnectorError
+    ClientConnectorError,
+    ClientConnectionError,
+    ClientOSError
 )
 from bs4 import BeautifulSoup
 from setuptools import setup
@@ -37,7 +39,7 @@ class Scraper:
                 return BeautifulSoup(html.decode("utf-8"), "html.parser")
             else:
                 raise ScraperError(f"status={resp.status}")
-        except ClientConnectorError as err:
+        except (ClientConnectorError, ClientOSError, ClientConnectionError) as err:
             raise ScraperError from err
 
     async def scrape(self) -> list[ImmoData]:

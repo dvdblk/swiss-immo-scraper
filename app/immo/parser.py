@@ -118,6 +118,8 @@ class ImmoParser:
                 ["resultList"]["search"]["fullSearch"]["result"]["listings"]
         except KeyError:
             raise ImmoParserError("Listings json changed.")
+        except TypeError as e:
+            raise ImmoParserError(str(e))
 
         immo_data_list = []
         for listing in listings:
