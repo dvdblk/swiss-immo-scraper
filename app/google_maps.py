@@ -21,7 +21,6 @@ async def compute_distance(
     """
     url = "https://maps.googleapis.com/maps/api/distancematrix/json"
     scheme, netloc, path, _, fragment = urlsplit(url)
-    url = "https://maps.googleapis.com/maps/api/distancematrix/json?origins=Boston%2CMA%7CCharlestown%2CMA&destinations=Lexington%2CMA%7CConcord%2CMA&departure_time=now&key=YOUR_API_KEY"
 
     url_params = {
         "origins": origin_address,
