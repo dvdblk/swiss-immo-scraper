@@ -11,7 +11,8 @@ spec:
     spec:
       containers:
         - name: scraper
-          image: ghcr.io/dvdblk/swiss-immo-scraper:main
+          image: ghcr.io/dvdblk/swiss-immo-scraper:latest
           imagePullPolicy: Always
-      imagePullSecrets:
-        - name: ghcr-regcred
+          envFrom:
+          - secretRef:
+              name: env-var-secret

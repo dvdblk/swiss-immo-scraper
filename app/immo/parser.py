@@ -4,10 +4,10 @@ import re
 
 from bs4 import BeautifulSoup
 
+from app import setup_custom_logger
 from app.immo.website import ImmoWebsite
 from app.immo.model import ImmoData
-from app.image_utils import scaled_image_size
-from app import setup_custom_logger
+from app.utils.image import scaled_image_size
 
 
 logger = setup_custom_logger(__name__)
