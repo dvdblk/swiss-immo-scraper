@@ -1,6 +1,7 @@
-"""Manager for scraping individual immo websites and sending discord messages"""
+from __future__ import annotations
+
 import asyncio
-import os
+from typing import List, Optional
 from urllib.parse import urlparse
 
 from aiohttp import ClientSession
@@ -10,10 +11,12 @@ from discord import (
 )
 
 from app import setup_custom_logger
-from app.scraper import Scraper
 from app.immo.model import ImmoData
-from app.discord_utils import send_discord_listing_embed
-from app.google_maps import compute_distance
+from app.immo.parser import ImmoParser, ImmoParserError
+from app.immo.website import ImmoWebsite
+from app.scraper import Scraper, ScraperNetworkError
+from app.utils.discord import send_discord_listing_embed
+from app.utils.google_maps import compute_distance
 
 
 class ImmoManager:
@@ -22,39 +25,56 @@ class ImmoManager:
     N_SECONDS_SLEEP = 120
 
     def __init__(
-        self, web_data: dict, session: ClientSession, use_google_maps: bool
+        self, immo_website_url: str, session: ClientSession,
+        discord_webhook_url: str, google_maps_api_key: Optional[str] = None,
+        google_maps_destination: Optional[str] = "Rämistrasse, Zürich, Switzerland"
     ):
-        # Env vars
-        discord_webhook_url = os.environ["DISCORD_WEBHOOK"]
-        self.google_maps_api_key = os.environ["GOOGLE_MAPS_API_KEY"] if use_google_maps else None
+        self.immo_website_url = immo_website_url
+        self.google_maps_api_key = google_maps_api_key
+        self.google_maps_destination_address = google_maps_destination
 
-        # Data
-        self.web_data = web_data
-        self.parsed_url = urlparse(web_data["url"])
+        # Model
+        parsed_url = urlparse(immo_website_url)
+        hostname = parsed_url.hostname
+        self.immo_website = ImmoWebsite(hostname)
         self.listings = []
 
         # Instances
-        self.logger = setup_custom_logger(".".join([__name__, self.parsed_url.hostname]))
-        self.scraper = Scraper(parsed_url=self.parsed_url, session=session)
+        self.logger = setup_custom_logger(".".join([__name__, hostname]))
+        self.scraper = Scraper(url=immo_website_url, session=session)
         self.discord = Webhook.from_url(
             discord_webhook_url,
             adapter=AsyncWebhookAdapter(session)
         )
 
-        self.logger.info("Initialized")
+        self.logger.info(f"Initialized for scraping: {immo_website_url}")
 
     async def start(self):
         """Scrape, send and save information about latest listings"""
         self.logger.info("Starting scraping...")
         while True:
-            # Scrape
-            fresh_listings = await self.scraper.scrape()
+            try:
+                # Scrape
+                fresh_listings_html = await self.scraper.scrape()
+                # Parse HTML into fresh listings
+                fresh_listings = ImmoParser.parse_html(
+                    self.immo_website,
+                    fresh_listings_html
+                )
+            except ScraperNetworkError as e:
+                self.logger.warning(f"Caught ScraperNetworkError, skipping this round of scraping: {e}")
+                await asyncio.sleep(self.N_SECONDS_SLEEP)
+                continue
+            except (KeyError, ImmoParserError) as e:
+                self.logger.warning(f"Caught parsing error, html likely changed: {e}")
+                await asyncio.sleep(self.N_SECONDS_SLEEP)
+                continue
 
             # Check whether HTML looks as expected
             if not fresh_listings:
                 warn_text = "fresh listings empty, HTML likely changed!"
                 self.logger.warning(warn_text)
-                await self.discord.send(f"{self.parsed_url.hostname} {warn_text}")
+                await self.discord.send(f"{self.immo_website.value} {warn_text}")
                 await asyncio.sleep(self.N_SECONDS_SLEEP)
                 continue
 
@@ -69,7 +89,7 @@ class ImmoManager:
                     # We need to warn the user that there might have been more listings added than
                     # we see in our LIMIT 20 request
                     await self.discord.send(
-                        f"Next {first_mutual_listing_idx} listings from {self.parsed_url.hostname} "
+                        f"Next {first_mutual_listing_idx} listings from {self.immo_website.value} "
                         "are all new, please check manually if there might be more."
                     )
 
@@ -79,12 +99,13 @@ class ImmoManager:
                 new_listings = fresh_listings[:first_mutual_listing_idx]
                 for new_listing in reversed(new_listings):
                     if self.google_maps_api_key:
-                        # Compute the distance from apartment to the given address
-                        # in this case 'Rämistrasse, Zürich, Switzerland'
+                        # Compute the distance from apartment address to the destination address
+                        # in this case, default destination address = 'Rämistrasse, Zürich, Switzerland'
                         distance, duration = await compute_distance(
                             self.scraper.session,
                             self.google_maps_api_key,
-                            new_listing.address
+                            origin_address=new_listing.address,
+                            destination_address=
                         )
                     else:
                         distance, duration = None, None
@@ -92,9 +113,9 @@ class ImmoManager:
                     await send_discord_listing_embed(
                         self.discord,
                         immo_data=new_listing,
-                        hostname=self.parsed_url.hostname,
-                        host_url=self.web_data["url"],
-                        host_icon_url=self.web_data.get("author_icon_url"),
+                        hostname=self.immo_website.value,
+                        host_url=self.immo_website_url,
+                        host_icon_url=self.immo_website.author_icon_url,
                         immo_distance=distance,
                         immo_duration=duration
                     )

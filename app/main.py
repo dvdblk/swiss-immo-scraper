@@ -1,54 +1,42 @@
 """Main module"""
-import argparse
 import asyncio
-import json
 
-import aiohttp
-from dotenv import load_dotenv
-
+from app import init_client_session, setup_custom_logger
 from app.manager import ImmoManager
+from app.config import Config
 
 
-async def main(args: dict):
-    """Starts the scraper"""
-    load_dotenv()
+log = setup_custom_logger(__name__)
 
-    session = aiohttp.ClientSession(
-        headers={
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:98.0) Gecko/20100101 Firefox/98.0"
-        }
-    )
-    loop = asyncio.get_running_loop()
+async def main(config: Config):
+    """Create an ImmoManager for each immo website and start scraping"""
+    session = init_client_session()
 
-    managers = []
-    scrape_data = json.load(args.file)
-    for web_data in scrape_data:
-        manager = ImmoManager(web_data, session, args.use_google_maps)
+    managers, tasks = [], []
+
+    if not config.scrape_urls:
+        log.info("No URLs for scraping provided. Exiting...")
+        return
+
+    for url in config.scrape_urls:
+        manager = ImmoManager(
+            immo_website_url=url,
+            session=session,
+            discord_webhook_url=config.discord_webhook,
+            google_maps_api_key=config.google_maps_api_key
+        )
         managers.append(manager)
 
-        loop.create_task(manager.start())
+        tasks.append(
+            asyncio.create_task(manager.start())
+        )
+
+    # Wait for all tasks to finish (never)
+    await asyncio.gather(*tasks)
+
 
 if __name__=="__main__":
-    parser = argparse.ArgumentParser(description="Swiss Immo Scraper")
-    parser.add_argument(
-        "-f",
-        "--file",
-        help="The json file with urls to scrape",
-        type=argparse.FileType("r"),
-        required=True
-    )
-    parser.add_argument(
-        "--google-maps",
-        action=argparse.BooleanOptionalAction,
-        dest="use_google_maps",
-        default=True
-    )
+    # Load the ENV Variables into a config instance
+    config = Config()
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.create_task(main(parser.parse_args()))
-        loop.run_forever()
-    finally:
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.close()
+    asyncio.run(main(config))

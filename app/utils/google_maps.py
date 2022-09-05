@@ -10,7 +10,7 @@ from aiohttp import ClientSession
 
 async def compute_distance(
     session: ClientSession, gmaps_api_key: str, origin_address: str,
-    destination: str = "Rämistrasse, Zürich, Switzerland"
+    destination_address: str
 ) -> tuple[str, str]:
     """Use Google Maps API to compute the distance (minutes and kms)
     from a given address to the destination
@@ -19,12 +19,12 @@ async def compute_distance(
         distance (str): distance in km as string with unit 'km' or None
         minutes (str): distance in minutes as string with unit 'mins' or None
     """
-    url = "https://maps.googleapis.com/maps/api/distancematrix/json"
-    scheme, netloc, path, _, fragment = urlsplit(url)
+    base_url = "https://maps.googleapis.com/maps/api/distancematrix/json"
+    scheme, netloc, path, _, fragment = urlsplit(base_url)
 
     url_params = {
         "origins": origin_address,
-        "destinations": destination,
+        "destinations": destination_address,
         "key": gmaps_api_key
     }
     query_params = urlencode(url_params)

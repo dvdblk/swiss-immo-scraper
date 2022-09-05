@@ -4,11 +4,9 @@ namespace: immo-scraper
 generatorOptions:
   disableNameSuffixHash: true
 secretGenerator:
-- name: ghcr-regcred
-  behavior: create
-  files:
-    - .dockerconfigjson=dockerconfig.json
-  type: kubernetes.io/dockerconfigjson
+- name: env-var-secret
+  envs:
+  - .env
 resources:
 - resources/namespace.yaml
 - resources/deployment.yaml

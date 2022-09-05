@@ -1,36 +1,26 @@
-"""Scraping functionality"""
-from urllib.parse import ParseResult
-
 from aiohttp import (
-    ClientSession,
-    ClientConnectorError,
     ClientConnectionError,
-    ClientOSError
+    ClientConnectorError,
+    ClientOSError,
+    ClientSession,
+    ServerDisconnectedError
 )
 from bs4 import BeautifulSoup
-from setuptools import setup
-
-from app import setup_custom_logger
-from app.immo.website import ImmoWebsite
-from app.immo.parser import ImmoParser
-from app.immo.model import ImmoData
 
 
-class ScraperError(Exception):
-    """Scraping exceptions"""
+class ScraperNetworkError(Exception):
+    """Scraping network exceptions"""
     pass
 
 
 class Scraper:
     """Fetch the given url and return scraped data"""
 
-    def __init__(self, parsed_url: ParseResult, session: ClientSession) -> None:
-        self.url = parsed_url.geturl()
-        self.logger = setup_custom_logger(".".join([__name__, parsed_url.hostname]))
-        self.website = ImmoWebsite(parsed_url.hostname)
+    def __init__(self, url: str, session: ClientSession) -> None:
+        self.url = url
         self.session = session
 
-    async def _fetch(self):
+    async def scrape(self):
         """Download the HTML and load it into a soup"""
         try:
             resp = await self.session.get(self.url)
@@ -38,18 +28,9 @@ class Scraper:
                 html = await resp.read()
                 return BeautifulSoup(html.decode("utf-8"), "html.parser")
             else:
-                raise ScraperError(f"status={resp.status}")
-        except (ClientConnectorError, ClientOSError, ClientConnectionError) as err:
-            raise ScraperError from err
-
-    async def scrape(self) -> list[ImmoData]:
-        """Scrape the given website data and return a list of last x listings"""
-        try:
-            html = await self._fetch()
-            return ImmoParser.parse_html(self.website, html)
-        except KeyError:
-            self.logger.error("html for %s has changed!", self.website.value)
-            return []
-        except ScraperError as e:
-            self.logger.error(e)
-            return []
+                raise ScraperNetworkError(f"status={resp.status}")
+        except (
+            ClientConnectorError, ClientOSError, ClientConnectionError,
+            ServerDisconnectedError
+        ) as err:
+            raise ScraperNetworkError from err
