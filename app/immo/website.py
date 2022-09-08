@@ -9,7 +9,7 @@ class ImmoWebsite(Enum):
     @property
     def author_icon_url(self) -> str:
         """Return thumbnail URL depending on current enum value"""
-        match self.value:
+        match self:
             case ImmoWebsite.IMMOSCOUT24:
                 return "https://play-lh.googleusercontent.com/FMd98MJtJLEo0uEDJtT8Gbs_fRjUV8aoVPpXcPTlZQwYL16vSh4XM2-y_X_-AYhQeMc"
             case ImmoWebsite.HOMEGATE:
