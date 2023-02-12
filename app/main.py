@@ -8,6 +8,7 @@ from app.config import Config
 
 log = setup_custom_logger(__name__)
 
+
 async def main(config: Config):
     """Create an ImmoManager for each immo website and start scraping"""
     session = init_client_session()
@@ -24,19 +25,20 @@ async def main(config: Config):
             session=session,
             discord_webhook_url=config.discord_webhook,
             google_maps_destination=config.google_maps_destination,
-            google_maps_api_key=config.google_maps_api_key
+            google_maps_api_key=config.google_maps_api_key,
+            preview_mode=config.preview_mode,
         )
         managers.append(manager)
 
-        tasks.append(
-            asyncio.create_task(manager.start())
-        )
+        tasks.append(asyncio.create_task(manager.start()))
 
-    # Wait for all tasks to finish (never)
+    # Wait for all tasks to finish (ideally never)
     await asyncio.gather(*tasks)
 
+    await session.close()
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     # Load the ENV Variables into a config instance
     config = Config()
 

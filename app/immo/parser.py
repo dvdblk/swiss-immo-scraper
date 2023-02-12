@@ -1,12 +1,13 @@
 """Parsing for immobilien websites"""
 import json
 import re
+from typing import List
 
 from bs4 import BeautifulSoup
 
 from app import setup_custom_logger
 from app.immo.website import ImmoWebsite
-from app.immo.model import ImmoData
+from app.immo.model import ImmoData, ImmoPriceKind
 from app.utils.image import scaled_image_size
 
 
@@ -15,6 +16,7 @@ logger = setup_custom_logger(__name__)
 
 class ImmoParserError(Exception):
     """Parsing errors"""
+
     pass
 
 
@@ -22,23 +24,23 @@ class ImmoParser:
     """Parse different HTML Immo website listings"""
 
     @staticmethod
-    def _parse_immoscout24(html: BeautifulSoup) -> list[ImmoData]:
+    def _parse_immoscout24(html: BeautifulSoup) -> List[ImmoData]:
         """Parse immoscout24.ch listings
 
         Returns:
             list[ImmoData]: ImmoData of listings on the immo website
         """
-        json_data_raw = html.find("script", { "id": "state" }).text.lstrip("__INITIAL_STATE__=")
+        json_data_raw = html.find("script", {"id": "state"}).text.lstrip(
+            "__INITIAL_STATE__="
+        )
         # This data contains obfuscated js code, need to clean it up first
         json_data_clean = re.sub(
             pattern='("insertion":{.*)("maxPriceCalculator")',
             repl="\\2",
-            string=json_data_raw
+            string=json_data_raw,
         )
         json_data_clean = re.sub(
-            pattern=":undefined",
-            repl=":null",
-            string=json_data_clean
+            pattern=":undefined", repl=":null", string=json_data_clean
         )
         listings_json = json.loads(json_data_clean)
         try:
@@ -66,17 +68,14 @@ class ImmoParser:
             for img in listing.get("images", []):
                 # Need to set a valid size for the image to load (less than 1280x720)
                 width, height = scaled_image_size(
-                    img.get("originalWidth", 0),
-                    img.get("originalHeight", 0),
-                    1280,
-                    720
+                    img.get("originalWidth", 0), img.get("originalHeight", 0), 1280, 720
                 )
                 if img.get("url"):
                     images.append(
-                        img["url"]\
-                        .replace("{width}", str(width), 1)\
-                        .replace("{height}", str(height), 1)\
-                        .replace("{resizemode}", "3", 1)\
+                        img["url"]
+                        .replace("{width}", str(width), 1)
+                        .replace("{height}", str(height), 1)
+                        .replace("{resizemode}", "3", 1)
                         .replace("{quality}", "90", 1)
                     )
 
@@ -85,17 +84,17 @@ class ImmoParser:
                     title=title,
                     address=address,
                     url=url,
-                    rent=rent,
+                    price=rent,
                     rooms=rooms,
                     living_space=living_space,
-                    images=images
+                    images=images,
                 )
             )
 
         return immo_data_list
 
     @staticmethod
-    def _parse_homegate(html: BeautifulSoup) -> list[ImmoData]:
+    def _parse_homegate(html: BeautifulSoup) -> List[ImmoData]:
         """Parse homegate.ch listings
 
         Returns:
@@ -114,8 +113,9 @@ class ImmoParser:
             )
 
         try:
-            listings = listings_json\
-                ["resultList"]["search"]["fullSearch"]["result"]["listings"]
+            listings = listings_json["resultList"]["search"]["fullSearch"]["result"][
+                "listings"
+            ]
         except KeyError:
             raise ImmoParserError("Listings json changed.")
         except TypeError as e:
@@ -155,16 +155,92 @@ class ImmoParser:
                         title=title,
                         address=address,
                         url=url,
-                        rent=rent,
+                        price=rent,
                         rooms=rooms,
                         living_space=living_space,
-                        images=images
+                        images=images,
                     )
                 )
             except KeyError:
                 logger.error("homegate.ch key error: %s", listing)
                 continue
 
+        return immo_data_list
+
+    @staticmethod
+    def _parse_immobilienscout24at(html: BeautifulSoup) -> List[ImmoData]:
+        """Parse immobilienscout24.at listings
+
+        Note:
+            Similar to immoscout24.ch
+
+        Returns:
+            list[ImmoData]: ImmoData of listings on the immo website
+        """
+        json_data_raw = html.find("script").text.lstrip("window.__INITIAL_STATE__=")
+        json_data_clean = re.sub(
+            pattern=":undefined", repl=":null", string=json_data_raw
+        )
+        # Remove script commands
+        json_data_clean = re.sub(
+            pattern="window\.[^\n]+", repl="", string=json_data_clean
+        )
+        listings_json = json.loads(json_data_clean)
+        try:
+            listings = listings_json["reduxAsyncConnect"]["pageData"]["results"]["hits"]
+        except KeyError:
+            raise ImmoParserError("Listings json changed.")
+
+        immo_data_list = []
+        for listing in listings:
+            title = listing.get("headline", "Object")
+            address = listing.get("addressString")
+            url = "/"
+            if links := listing.get("links"):
+                url = links.get("targetURL")
+            # Price
+            price = None
+            if price_key_facts := listing.get("priceKeyFacts"):
+                price = price_key_facts[0].get("value")
+
+            rooms, living_space = None, None
+            if main_key_facts := listing.get("mainKeyFacts"):
+                for fact in main_key_facts:
+                    if label := fact.get("label"):
+                        if label == "Zimmer":
+                            rooms = fact.get("value")
+                        elif label == "Fläche":
+                            living_space = fact.get("value")
+
+            images = []
+            if image_props := listing.get("primaryPictureImageProps"):
+                for source in image_props.get("sources", []):
+                    if type := source.get("type"):
+                        if type == "image/jpeg":
+                            if media := source.get("media"):
+                                if media == "(max-width: 1023px)":
+                                    if src := source.get("srcSet"):
+                                        src = src.split()[0]
+                                        images.append(src)
+                                        break
+                # Use "src" if the max-width image is not available
+                if not images:
+                    if src_image_url := image_props.get("src"):
+                        images.append(src_image_url)
+
+            immo_data_list.append(
+                ImmoData(
+                    title=title,
+                    address=address,
+                    url=url,
+                    price=price,
+                    price_kind=ImmoPriceKind.PRICE,
+                    currency="€",
+                    rooms=rooms,
+                    living_space=living_space,
+                    images=images,
+                )
+            )
 
         return immo_data_list
 
@@ -180,6 +256,8 @@ class ImmoParser:
                 results = cls._parse_immoscout24(html)
             case ImmoWebsite.HOMEGATE:
                 results = cls._parse_homegate(html)
+            case ImmoWebsite.IMMOBILIENSCOUT24AT:
+                results = cls._parse_immobilienscout24at(html)
 
         for immo_data in results:
             immo_data.url = f"https://{website.value}{immo_data.url}"

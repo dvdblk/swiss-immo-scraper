@@ -48,6 +48,8 @@ You can edit the URLs that will be scraped periodically. Simply select your desi
 
 ## Quickstart
 
+> Built for Python 3.10 as [aiohttp is not functional with 3.11+](https://github.com/aio-libs/aiohttp/issues/6600)
+
 **Environment variables**:
 | ENV_VAR | Description | Required |
 |---|---|---|
@@ -55,6 +57,7 @@ You can edit the URLs that will be scraped periodically. Simply select your desi
 | SCRAPE_URLS | a list of URLs to scrape (can contain multiple URLs per one hostname) | Yes |
 | GOOGLE_MAPS_API_KEY | API key for accessing Distance Matrix API (optional) | No |
 | GOOGLE_MAPS_DESTINATION | The destination address to use when computing distance to a new apartment listing | No |
+| PREVIEW_MODE | for testing purposes, sends the last apartment on any scraping URL directly to discord | No |
 
 How to run the script:
 1. Docker container

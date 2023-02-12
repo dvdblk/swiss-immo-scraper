@@ -5,10 +5,7 @@ from typing import List, Optional
 from urllib.parse import urlparse
 
 from aiohttp import ClientSession
-from discord import (
-    Webhook,
-    AsyncWebhookAdapter
-)
+from discord import Webhook, AsyncWebhookAdapter
 
 from app import setup_custom_logger
 from app.immo.model import ImmoData
@@ -21,17 +18,34 @@ from app.utils.google_maps import compute_distance
 
 class ImmoManager:
     """do stuff"""
+
     # Time delta between individual scrapes
-    N_SECONDS_SLEEP = 120
+    N_SECONDS_SLEEP = 1800
 
     def __init__(
-        self, immo_website_url: str, session: ClientSession,
-        discord_webhook_url: str, google_maps_destination: Optional[str],
-        google_maps_api_key: Optional[str] = None
+        self,
+        immo_website_url: str,
+        session: ClientSession,
+        discord_webhook_url: str,
+        google_maps_destination: Optional[str],
+        google_maps_api_key: Optional[str] = None,
+        preview_mode: bool = False,
     ):
+        """
+        Args:
+            immo_website_url: the URL this manager will scrape
+            session: shared aiohttp.ClientSession
+            discord_webhook_url: URL string of a discord webhook
+            google_maps_destination: human readable destination string (e.g. "Raemistrasse, Zurich")
+            google_maps_api_key: Google Maps API Key
+            preview_mode: if True, the Manager will send the (current) last apartment / object found
+                            on the first scrape pass to the discord webhook and then exit.
+        """
         self.immo_website_url = immo_website_url
+        self.session = session
         self.google_maps_api_key = google_maps_api_key
         self.google_maps_destination_address = google_maps_destination
+        self.preview_mode = preview_mode
 
         # Model
         parsed_url = urlparse(immo_website_url)
@@ -43,11 +57,36 @@ class ImmoManager:
         self.logger = setup_custom_logger(".".join([__name__, hostname]))
         self.scraper = Scraper(url=immo_website_url, session=session)
         self.discord = Webhook.from_url(
-            discord_webhook_url,
-            adapter=AsyncWebhookAdapter(session)
+            discord_webhook_url, adapter=AsyncWebhookAdapter(session)
         )
 
         self.logger.info(f"Initialized for scraping: {immo_website_url}")
+
+    async def _send_discord_message(self, listing):
+        """Send discord message via a webhook for the given listing data"""
+        if self.google_maps_api_key:
+            # Compute the distance from apartment address to the destination address
+            # in this case, default destination address = 'Rämistrasse, Zürich, Switzerland'
+            distance, duration = await compute_distance(
+                self.scraper.session,
+                self.google_maps_api_key,
+                origin_address=listing.address,
+                destination_address=self.google_maps_destination_address,
+            )
+        else:
+            distance, duration = None, None
+
+        await send_discord_listing_embed(
+            self.discord,
+            session=self.session,
+            immo_data=listing,
+            hostname=self.immo_website.value,
+            host_url=self.immo_website_url,
+            host_icon_url=self.immo_website.author_icon_url,
+            immo_distance=distance,
+            immo_duration=duration,
+        )
+        self.logger.debug("sent %s", listing.url)
 
     async def start(self):
         """Scrape, send and save information about latest listings"""
@@ -58,11 +97,12 @@ class ImmoManager:
                 fresh_listings_html = await self.scraper.scrape()
                 # Parse HTML into fresh listings
                 fresh_listings = ImmoParser.parse_html(
-                    self.immo_website,
-                    fresh_listings_html
+                    self.immo_website, fresh_listings_html
                 )
             except ScraperNetworkError as e:
-                self.logger.warning(f"Caught ScraperNetworkError, skipping this round of scraping: {e}")
+                self.logger.warning(
+                    f"Caught ScraperNetworkError, skipping this round of scraping: {e}"
+                )
                 await asyncio.sleep(self.N_SECONDS_SLEEP)
                 continue
             except (KeyError, ImmoParserError) as e:
@@ -79,7 +119,9 @@ class ImmoManager:
                 continue
 
             # First, we need to find a listing that is present in both lists (fresh + old)
-            first_mutual_listing_idx = self._find_first_mutual_listing_idx(fresh_listings)
+            first_mutual_listing_idx = self._find_first_mutual_listing_idx(
+                fresh_listings
+            )
 
             # If there are no mutual elements, all listings are new
             if first_mutual_listing_idx is None:
@@ -98,31 +140,22 @@ class ImmoManager:
                 # Send every new listing to discord starting from oldest to newest
                 new_listings = fresh_listings[:first_mutual_listing_idx]
                 for new_listing in reversed(new_listings):
-                    if self.google_maps_api_key:
-                        # Compute the distance from apartment address to the destination address
-                        # in this case, default destination address = 'Rämistrasse, Zürich, Switzerland'
-                        distance, duration = await compute_distance(
-                            self.scraper.session,
-                            self.google_maps_api_key,
-                            origin_address=new_listing.address,
-                            destination_address=self.google_maps_destination_address
-                        )
-                    else:
-                        distance, duration = None, None
-
-                    await send_discord_listing_embed(
-                        self.discord,
-                        immo_data=new_listing,
-                        hostname=self.immo_website.value,
-                        host_url=self.immo_website_url,
-                        host_icon_url=self.immo_website.author_icon_url,
-                        immo_distance=distance,
-                        immo_duration=duration
-                    )
-                    self.logger.debug("sent %s", new_listing.url)
+                    await self._send_discord_message(new_listing)
             else:
-                # first scrape pass, there are no older listings yet
-                self.logger.debug("skipping first batch of listings")
+                if self.preview_mode:
+
+                    if fresh_listings:
+                        self.logger.debug("Preview mode: sending preview to Discord...")
+                        await self._send_discord_message(fresh_listings[0])
+                    else:
+                        self.logger.debug(
+                            "Preview mode: no listings found in the first URL scrape (fresh_listings is empty)."
+                        )
+                    # Exit
+                    return
+                else:
+                    # first scrape pass, there are no older listings yet
+                    self.logger.debug("skipping first batch of listings")
 
             # Save latest fresh listings
             self.listings = fresh_listings

@@ -1,0 +1,12 @@
+# Immo Websites
+
+1. [immobilienscout24.at](https://www.immobilienscout24.at/regional/immobilie-kaufen/aktualitaet?region=007003014%2C007003047%2C007002002%2C007002019)
+   * Praxmar => Sankt Sigmund im Sellrain
+   * Lusenstal => Luesens (Sankt Sigmund im Sellrain)
+   * Juifenau => Gries im Sellrain
+   * Sellraintal => Sankt Sigmund im Sellrain
+   * Gries im Sellrain OK
+   * Kuhtai => Silz
+   * Ochsengarten => Haiming
+2.
+

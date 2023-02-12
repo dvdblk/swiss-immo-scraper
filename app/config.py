@@ -1,9 +1,6 @@
 from typing import List, Optional, Tuple
 
-from pydantic import (
-    AnyHttpUrl,
-    BaseSettings
-)
+from pydantic import AnyHttpUrl, BaseSettings
 
 
 class Config(BaseSettings):
@@ -19,3 +16,7 @@ class Config(BaseSettings):
     # List of Immo URLs that will be scraped.
     # You can use multiple URLs per one Immo website.
     scrape_urls: List[AnyHttpUrl]
+
+    # Preview mode, if true, the app will send the last
+    # apartment / object found on the scraping URLs to the webhook
+    preview_mode: Optional[bool] = False

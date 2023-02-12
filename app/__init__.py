@@ -7,6 +7,7 @@ import aiohttp
 
 loggers = dict()
 
+
 def setup_custom_logger(name) -> logging.Logger:
     """Create and return a custom logger"""
     if existing_log := loggers.get(name, None):
@@ -14,7 +15,7 @@ def setup_custom_logger(name) -> logging.Logger:
     else:
         formatter = logging.Formatter(
             fmt="%(asctime)s.%(msecs)03d %(name)s %(levelname)-8s %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(formatter)
