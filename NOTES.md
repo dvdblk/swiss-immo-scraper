@@ -8,5 +8,6 @@
    * Gries im Sellrain OK
    * Kuhtai => Silz
    * Ochsengarten => Haiming
-2.
-
+2. [immodirekt.at](https://www.immodirekt.at/)
+   * netreba lebo vsetky data maju z immobilienscout24.at
+3. [immowelt.at](https://www.immowelt.at/)

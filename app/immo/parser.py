@@ -6,18 +6,13 @@ from typing import List
 from bs4 import BeautifulSoup
 
 from app import setup_custom_logger
-from app.immo.website import ImmoWebsite
+from app.immo.error import ImmoParserError
 from app.immo.model import ImmoData, ImmoPriceKind
+from app.immo.website import ImmoWebsite
 from app.utils.image import scaled_image_size
 
 
 logger = setup_custom_logger(__name__)
-
-
-class ImmoParserError(Exception):
-    """Parsing errors"""
-
-    pass
 
 
 class ImmoParser:
@@ -46,7 +41,7 @@ class ImmoParser:
         try:
             listings = listings_json["pages"]["searchResult"]["resultData"]["listData"]
         except KeyError:
-            raise ImmoParserError("Listings json changed.")
+            raise ImmoParserError("Listings json path changed.")
 
         immo_data_list = []
         for listing in listings:
@@ -117,7 +112,7 @@ class ImmoParser:
                 "listings"
             ]
         except KeyError:
-            raise ImmoParserError("Listings json changed.")
+            raise ImmoParserError("Listings json path changed.")
         except TypeError as e:
             raise ImmoParserError(str(e))
 
@@ -189,7 +184,7 @@ class ImmoParser:
         try:
             listings = listings_json["reduxAsyncConnect"]["pageData"]["results"]["hits"]
         except KeyError:
-            raise ImmoParserError("Listings json changed.")
+            raise ImmoParserError("Listings json path changed.")
 
         immo_data_list = []
         for listing in listings:
@@ -244,6 +239,66 @@ class ImmoParser:
 
         return immo_data_list
 
+    @staticmethod
+    def _parse_immoweltat(html: BeautifulSoup) -> List[ImmoData]:
+        """Parse immowelt.at listings
+
+        Returns:
+            list[ImmoData]: ImmoData of listings on the immo website
+        """
+        json_data = (
+            html.find("script", {"type": "application/json"})
+            .text.lstrip("<!--")
+            .rstrip("-->")
+        )
+        listings_json = json.loads(json_data)
+        try:
+            listings = listings_json["initialState"]["estateSearch"]["data"]["estates"]
+        except KeyError:
+            raise ImmoParserError("Listings json path changed.")
+
+        immo_data_list = []
+        for listing in listings:
+            title = listing.get("title", "Object")
+            address = None
+            if place := listing.get("place"):
+                address = place.get("city")
+            url = "/"
+            if online_id := listing.get("onlineId"):
+                url = f"/expose/{online_id}"
+            price = None
+            if primary_price := listing.get("primaryPrice"):
+                price = primary_price.get("amountMin") or primary_price.get("amountMax")
+
+            rooms = listing.get("roomsMin") or listing.get("roomsMax")
+            living_space = None
+            if primary_area := listing.get("primaryArea"):
+                living_space = primary_area.get("sizeMin") or primary_area.get(
+                    "sizeMax"
+                )
+
+            images = []
+            if pictures := listing.get("pictures"):
+                for picture in pictures:
+                    if image_url := picture.get("imageUri"):
+                        images.append(image_url)
+
+            immo_data_list.append(
+                ImmoData(
+                    title=title,
+                    address=address,
+                    url=url,
+                    price=price,
+                    price_kind=ImmoPriceKind.PRICE,
+                    currency="€",
+                    rooms=rooms,
+                    living_space=living_space,
+                    images=images,
+                )
+            )
+
+        return immo_data_list
+
     @classmethod
     def parse_html(cls, website: ImmoWebsite, html: BeautifulSoup) -> list[ImmoData]:
         """Select the correct parser and parse the given html
@@ -258,6 +313,8 @@ class ImmoParser:
                 results = cls._parse_homegate(html)
             case ImmoWebsite.IMMOBILIENSCOUT24AT:
                 results = cls._parse_immobilienscout24at(html)
+            case ImmoWebsite.IMMOWELTAT:
+                results = cls._parse_immoweltat(html)
 
         for immo_data in results:
             immo_data.url = f"https://{website.value}{immo_data.url}"
