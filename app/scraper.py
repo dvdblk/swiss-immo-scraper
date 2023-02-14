@@ -3,13 +3,14 @@ from aiohttp import (
     ClientConnectorError,
     ClientOSError,
     ClientSession,
-    ServerDisconnectedError
+    ServerDisconnectedError,
 )
 from bs4 import BeautifulSoup
 
 
 class ScraperNetworkError(Exception):
     """Scraping network exceptions"""
+
     pass
 
 
@@ -20,7 +21,7 @@ class Scraper:
         self.url = url
         self.session = session
 
-    async def scrape(self):
+    async def scrape(self) -> BeautifulSoup:
         """Download the HTML and load it into a soup"""
         try:
             resp = await self.session.get(self.url)
@@ -30,7 +31,9 @@ class Scraper:
             else:
                 raise ScraperNetworkError(f"status={resp.status}")
         except (
-            ClientConnectorError, ClientOSError, ClientConnectionError,
-            ServerDisconnectedError
+            ClientConnectorError,
+            ClientOSError,
+            ClientConnectionError,
+            ServerDisconnectedError,
         ) as err:
             raise ScraperNetworkError from err

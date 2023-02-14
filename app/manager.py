@@ -17,19 +17,16 @@ from app.utils.google_maps import compute_distance
 
 
 class ImmoManager:
-    """do stuff"""
-
-    # Time delta between individual scrapes
-    N_SECONDS_SLEEP = 1800
+    """Manage scraping apartment and estate listings every n seconds while posting new ones to Discord."""
 
     def __init__(
         self,
         immo_website_url: str,
         session: ClientSession,
         discord_webhook_url: str,
+        n_seconds_sleep: int,
         google_maps_destination: Optional[str],
         google_maps_api_key: Optional[str] = None,
-        preview_mode: bool = False,
     ):
         """
         Args:
@@ -38,20 +35,18 @@ class ImmoManager:
             discord_webhook_url: URL string of a discord webhook
             google_maps_destination: human readable destination string (e.g. "Raemistrasse, Zurich")
             google_maps_api_key: Google Maps API Key
-            preview_mode: if True, the Manager will send the (current) last apartment / object found
-                            on the first scrape pass to the discord webhook and then exit.
         """
         self.immo_website_url = immo_website_url
         self.session = session
         self.google_maps_api_key = google_maps_api_key
         self.google_maps_destination_address = google_maps_destination
-        self.preview_mode = preview_mode
+        self.n_seconds_sleep = n_seconds_sleep
 
         # Model
         parsed_url = urlparse(immo_website_url)
         hostname = parsed_url.hostname
         self.immo_website = ImmoWebsite(hostname)
-        self.listings = []
+        self.listings = None
 
         # Instances
         self.logger = setup_custom_logger(".".join([__name__, hostname]))
@@ -88,36 +83,19 @@ class ImmoManager:
         )
         self.logger.debug("sent %s", listing.url)
 
-    async def start(self):
-        """Scrape, send and save information about latest listings"""
-        self.logger.info("Starting scraping...")
-        while True:
-            try:
-                # Scrape
-                fresh_listings_html = await self.scraper.scrape()
-                # Parse HTML into fresh listings
-                fresh_listings = ImmoParser.parse_html(
-                    self.immo_website, fresh_listings_html
-                )
-            except ScraperNetworkError as e:
-                self.logger.warning(
-                    f"Caught ScraperNetworkError, skipping this round of scraping: {e}"
-                )
-                await asyncio.sleep(self.N_SECONDS_SLEEP)
-                continue
-            except (KeyError, ImmoParserError) as e:
-                self.logger.warning(f"Caught parsing error, html likely changed: {e}")
-                await asyncio.sleep(self.N_SECONDS_SLEEP)
-                continue
+    def _find_first_mutual_listing_idx(self, fresh_listings: ImmoData) -> Optional[int]:
+        """Find the first index that is in both (old + fresh) listings"""
+        for old_listing in self.listings:
+            for i, fresh_listing in enumerate(fresh_listings):
+                if old_listing.url == fresh_listing.url:
+                    return i
 
-            # Check whether HTML looks as expected
-            if not fresh_listings:
-                warn_text = "fresh listings empty, HTML likely changed!"
-                self.logger.warning(warn_text)
-                await self.discord.send(f"{self.immo_website.value} {warn_text}")
-                await asyncio.sleep(self.N_SECONDS_SLEEP)
-                continue
-
+    async def _process_fresh_listings(self, fresh_listings: List[ImmoData]):
+        """Search through latest fresh_listings, tagging any new (previously unseen) listings
+        and then posting them to Discord.
+        """
+        if self.listings:
+            # If there are existing old listings
             # First, we need to find a listing that is present in both lists (fresh + old)
             first_mutual_listing_idx = self._find_first_mutual_listing_idx(
                 fresh_listings
@@ -134,38 +112,39 @@ class ImmoManager:
                         f"Next {first_mutual_listing_idx} listings from {self.immo_website.value} "
                         "are all new, please check manually if there might be more."
                     )
+            # Send every new listing to discord starting from oldest to newest
+            new_listings = fresh_listings[:first_mutual_listing_idx]
+            for new_listing in reversed(new_listings):
+                await self._send_discord_message(new_listing)
+        elif self.listings is None:
+            # first scrape pass, there are no older listings yet
+            self.logger.debug("skipping first batch of listings")
 
-            if self.listings:
-                # If there are existing old listings
-                # Send every new listing to discord starting from oldest to newest
-                new_listings = fresh_listings[:first_mutual_listing_idx]
-                for new_listing in reversed(new_listings):
-                    await self._send_discord_message(new_listing)
-            else:
-                if self.preview_mode:
+        # Save latest fresh listings for the next iteration
+        self.listings = fresh_listings
 
-                    if fresh_listings:
-                        self.logger.debug("Preview mode: sending preview to Discord...")
-                        await self._send_discord_message(fresh_listings[0])
-                    else:
-                        self.logger.debug(
-                            "Preview mode: no listings found in the first URL scrape (fresh_listings is empty)."
-                        )
-                    # Exit
-                    return
-                else:
-                    # first scrape pass, there are no older listings yet
-                    self.logger.debug("skipping first batch of listings")
+    async def start(self):
+        """Scrape, send and save information about latest listings"""
+        while True:
+            try:
+                # Scrape
+                fresh_listings_html = await self.scraper.scrape()
+                # Parse HTML into fresh listings
+                fresh_listings = ImmoParser.parse_html(
+                    self.immo_website, fresh_listings_html
+                )
+            except ScraperNetworkError as e:
+                self.logger.warning(
+                    f"Caught ScraperNetworkError, skipping this round of scraping: {e}"
+                )
+                await asyncio.sleep(self.n_seconds_sleep)
+                continue
+            except (KeyError, ImmoParserError) as e:
+                self.logger.warning(f"Caught parsing error, html likely changed: {e}")
+                await asyncio.sleep(self.n_seconds_sleep)
+                continue
 
-            # Save latest fresh listings
-            self.listings = fresh_listings
+            await self._process_fresh_listings(fresh_listings)
 
             # wait
-            await asyncio.sleep(self.N_SECONDS_SLEEP)
-
-    def _find_first_mutual_listing_idx(self, fresh_listings: ImmoData):
-        """Find the first index that is in both (old + fresh) listings"""
-        for old_listing in self.listings:
-            for i, fresh_listing in enumerate(fresh_listings):
-                if old_listing.url == fresh_listing.url:
-                    return i
+            await asyncio.sleep(self.n_seconds_sleep)

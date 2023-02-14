@@ -4,3 +4,4 @@ discord.py
 pydantic
 pylint
 python-dotenv
+sentry-sdk

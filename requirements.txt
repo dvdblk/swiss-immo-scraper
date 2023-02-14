@@ -5,7 +5,9 @@
 #    pip-compile requirements.in
 #
 aiohttp==3.7.4.post0
-    # via discord-py
+    # via
+    #   -r requirements.in
+    #   discord-py
 astroid==2.9.3
     # via pylint
 async-timeout==3.0.1
@@ -14,6 +16,8 @@ attrs==21.4.0
     # via aiohttp
 beautifulsoup4==4.10.0
     # via -r requirements.in
+certifi==2022.12.7
+    # via sentry-sdk
 chardet==4.0.0
     # via aiohttp
 discord-py==1.7.3
@@ -38,6 +42,8 @@ pylint==2.12.2
     # via -r requirements.in
 python-dotenv==0.20.0
     # via -r requirements.in
+sentry-sdk==1.15.0
+    # via -r requirements.in
 soupsieve==2.3.1
     # via beautifulsoup4
 toml==0.10.2
@@ -46,6 +52,8 @@ typing-extensions==4.1.1
     # via
     #   aiohttp
     #   pydantic
+urllib3==1.26.14
+    # via sentry-sdk
 wrapt==1.13.3
     # via astroid
 yarl==1.7.2

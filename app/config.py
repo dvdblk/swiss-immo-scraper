@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from pydantic import AnyHttpUrl, BaseSettings
 
@@ -13,10 +13,12 @@ class Config(BaseSettings):
     # apartment to the destination address
     google_maps_destination: Optional[str]
 
+    # Sentry DSN for monitoring potential exceptions
+    sentry_dsn: Optional[AnyHttpUrl]
+
     # List of Immo URLs that will be scraped.
     # You can use multiple URLs per one Immo website.
     scrape_urls: List[AnyHttpUrl]
 
-    # Preview mode, if true, the app will send the last
-    # apartment / object found on the scraping URLs to the webhook
-    preview_mode: Optional[bool] = False
+    # Time delta between individual scrapes in seconds
+    scraping_interval: int = 120
