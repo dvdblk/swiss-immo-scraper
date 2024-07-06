@@ -2,7 +2,7 @@ from ctypes import c_uint64
 from datetime import datetime
 from functools import reduce
 from io import BytesIO
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import aiohttp
 from discord import Embed, File, Webhook
@@ -55,8 +55,7 @@ async def send_discord_listing_embed(
     hostname: str,
     host_url: str,
     host_icon_url: str,
-    immo_distance: str,
-    immo_duration: str,
+    immo_distances: Dict[str, Tuple[str, str]]
 ):
     """Sends an embed message from listing (immo) data"""
     embeds = []
@@ -71,16 +70,26 @@ async def send_discord_listing_embed(
     embed.add_field(name=immo_data.price_kind.value, value=immo_data.price, inline=True)
     embed.add_field(name="Rooms", value=immo_data.rooms, inline=True)
     embed.add_field(name="Living space", value=immo_data.living_space, inline=True)
-    if immo_distance and immo_duration:
-        # Add embed for distance and travel duration if possible
-        embed.add_field(
-            name="Distance", value=f"{immo_distance} ({immo_duration})", inline=True
-        )
-    embed.set_footer(text=immo_data.address)
+    if immo_distances is not None:
+        mode_emoji_map = {
+            "driving": "🚙",
+            "transit": "🚋",
+            "bicycling": "🚲",
+        }
+        # Add embed for each distance and travel duration type
+        for mode, (distance, duration) in immo_distances.items():
+            embed.add_field(
+                name=f"Distance {mode_emoji_map[mode]}",
+                value=f"{distance} ({duration})",
+                inline=True,
+            )
 
+    embed.set_footer(text=immo_data.address, icon_url=immo_data.lister_logo_url or "")
     images, files = await _images_viewable_in_embed(immo_data.images, session)
 
     n_images = min(len(images), 4)
+    files = files[:n_images]
+
     if n_images > 0:
         embed.set_image(url=images[0])
     # Save first embed

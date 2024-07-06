@@ -25,6 +25,73 @@ class ImmoParser:
         Returns:
             list[ImmoData]: ImmoData of listings on the immo website
         """
+        # try to get the json that is inside of a specific script tag
+        json_raw_data = html.find(
+            lambda tag: tag.name == "script" and \
+            tag.string and \
+            tag.string.startswith("window.__INITIAL_STATE__=")
+        ).text.lstrip("window.__INITIAL_STATE__=")
+
+        # cleaning up not needed so just load the json
+        listings_json = json.loads(json_raw_data)
+
+        try:
+            listings = listings_json["resultList"]["search"]["fullSearch"]["result"]["listings"]
+
+        except KeyError:
+            raise ImmoParserError("Listings json path changed.")
+
+        immo_data_list = []
+        for listing in listings:
+            if lister_logo_url := listing.get("listerBranding"):
+                lister_logo_url = lister_logo_url.get("logoUrl")
+
+            # unwrap the listing
+            listing = listing["listing"]
+            primary_localization = listing["localization"]["primary"]
+            try:
+                title = listing["localization"][primary_localization]["text"]["title"]
+                loc = listing["address"]["locality"]
+                plz = listing["address"]["postalCode"]
+                street = listing["address"]["street"]
+                address = f"{street}, {plz} {loc}"
+            except KeyError:
+                address = None
+                title = "Wohnung"
+            url = f"/rent/{listing.get('id')}"
+            rent = listing.get("prices").get("rent").get("gross") # gross
+            rooms = listing.get("characteristics").get("numberOfRooms")
+            living_space = listing.get("characteristics").get("livingSpace")
+
+            images = []
+            for attachment in listing["localization"][primary_localization]["attachments"]:
+                if attachment["type"] == "IMAGE":
+                    images.append(attachment["url"].encode().decode("unicode-escape"))
+
+            immo_data_list.append(
+                ImmoData(
+                    title=title,
+                    address=address,
+                    url=url,
+                    price=rent,
+                    rooms=rooms,
+                    living_space=living_space,
+                    images=images,
+                    lister_logo_url=lister_logo_url
+                )
+            )
+
+        return immo_data_list
+
+    @staticmethod
+    def _parse_immoscout24_old(html: BeautifulSoup) -> List[ImmoData]:
+        """DEPRECATED, worked for older version of immoscout24.ch
+
+        Parse immoscout24.ch listings
+
+        Returns:
+            list[ImmoData]: ImmoData of listings on the immo website
+        """
         json_data_raw = html.find("script", {"id": "state"}).text.lstrip(
             "__INITIAL_STATE__="
         )

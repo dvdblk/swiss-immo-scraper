@@ -5,6 +5,7 @@ from urllib.parse import (
 )
 from math import ceil
 
+import asyncio
 from aiohttp import ClientSession
 
 
@@ -22,25 +23,32 @@ async def compute_distance(
     base_url = "https://maps.googleapis.com/maps/api/distancematrix/json"
     scheme, netloc, path, _, fragment = urlsplit(base_url)
 
-    url_params = {
-        "origins": origin_address,
-        "destinations": destination_address,
-        "key": gmaps_api_key
-    }
-    query_params = urlencode(url_params)
+    modes = ["driving", "transit", "bicycling"]
 
-    request_url = urlunsplit((scheme, netloc, path, query_params, fragment))
-    resp = await session.get(request_url)
-    if resp.status == 200:
-        resp_json = await resp.json()
-        try:
-            # Get distance in minutes and kilometers
-            distance = resp_json["rows"][0]["elements"][0]["distance"]["text"]
-            duration_value = resp_json["rows"][0]["elements"][0]["duration"]["value"]
-            duration = ceil(duration_value / 60)
+    results = {}
 
-            return distance, f"{duration} min."
-        except (KeyError, IndexError):
-            pass
+    async def fetch_distance(mode):
+        url_params = {
+            "origins": origin_address,
+            "destinations": destination_address,
+            "mode": mode,
+            "key": gmaps_api_key
+        }
+        query_params = urlencode(url_params)
+        request_url = urlunsplit((scheme, netloc, path, query_params, fragment))
 
-    return None, None
+        async with session.get(request_url) as resp:
+            if resp.status == 200:
+                resp_json = await resp.json()
+                try:
+                    element = resp_json["rows"][0]["elements"][0]
+                    distance = element["distance"]["text"]
+                    duration = element["duration"]["text"]
+                    return mode, (distance, duration)
+                except (KeyError, IndexError):
+                    return mode, (None, None)
+            else:
+                return mode, (None, None)
+
+    results = dict(await asyncio.gather(*(fetch_distance(mode) for mode in modes)))
+    return results

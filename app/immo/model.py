@@ -1,6 +1,6 @@
 from dataclasses import dataclass, fields, _MISSING_TYPE
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 
 class ImmoPriceKind(Enum):
@@ -21,6 +21,7 @@ class ImmoData:
     rooms: str = "-"
     living_space: str = "-"
     currency: str = "CHF"
+    lister_logo_url: Optional[str] = None
 
     def __post_init__(self):
         # Set default values properly for None input arguments

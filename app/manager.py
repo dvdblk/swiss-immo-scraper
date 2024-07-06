@@ -62,14 +62,14 @@ class ImmoManager:
         if self.google_maps_api_key:
             # Compute the distance from apartment address to the destination address
             # in this case, default destination address = 'Rämistrasse, Zürich, Switzerland'
-            distance, duration = await compute_distance(
+            distance_results = await compute_distance(
                 self.scraper.session,
                 self.google_maps_api_key,
                 origin_address=listing.address,
                 destination_address=self.google_maps_destination_address,
             )
         else:
-            distance, duration = None, None
+            distance_results = None
 
         await send_discord_listing_embed(
             self.discord,
@@ -78,8 +78,7 @@ class ImmoManager:
             hostname=self.immo_website.value,
             host_url=self.immo_website_url,
             host_icon_url=self.immo_website.author_icon_url,
-            immo_distance=distance,
-            immo_duration=duration,
+            immo_distances=distance_results,
         )
         self.logger.debug("sent %s", listing.url)
 
