@@ -63,10 +63,12 @@ class ImmoParser:
             rooms = listing.get("characteristics").get("numberOfRooms")
             living_space = listing.get("characteristics").get("livingSpace")
 
-            images = []
-            for attachment in listing["localization"][primary_localization]["attachments"]:
-                if attachment["type"] == "IMAGE":
-                    images.append(attachment["url"].encode().decode("unicode-escape"))
+            attachments = listing["localization"][primary_localization].get("attachments") or []
+            images = [
+                attachment["url"].encode().decode("unicode-escape")
+                for attachment in attachments
+                if attachment["type"] == "IMAGE"
+            ]
 
             immo_data_list.append(
                 ImmoData(
@@ -190,13 +192,12 @@ class ImmoParser:
                 localization = listing["localization"]
                 primary_key = localization["primary"]
                 title = localization[primary_key]["text"]["title"]
-                images_list = localization[primary_key]["attachments"]
-                images = []
-                for image_obj in images_list:
-                    if image_obj["type"] == "IMAGE":
-                        images.append(
-                            image_obj["url"].encode().decode("unicode-escape")
-                        )
+                attachments = localization[primary_key].get("attachments") or []
+                images = [
+                    attachment["url"].encode().decode("unicode-escape")
+                    for attachment in attachments
+                    if attachment["type"] == "IMAGE"
+                ]
                 address = None
                 try:
                     loc = listing["address"]["locality"]
